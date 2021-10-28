@@ -7,7 +7,7 @@ This library performs SQL like joins between [BluePrism](https://www.blueprism.c
 
 ### Key selectors
 
-Key parameters are simple ```Text``` comma separated value expressions.
+Key selectors are simple ```Text``` comma separated value expressions.
 Regard the following rules
 - The key field order is important
 - The key name is NOT important
@@ -20,7 +20,7 @@ Regard the following rules
 
 ### Result selectors
 
-Result selector are ```Text``` comma separated value expressions.
+Result selectors are ```Text``` comma separated value expressions.
 Important are the following rules
 - Take self care about name collisions
 - Rename columns with an ```as``` expression (see examples)
