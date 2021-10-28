@@ -1,0 +1,1370 @@
+﻿<process name="Coremoran - Utility - Joins" version="1.0" bpversion="6.10.3.47902" narrative="Performs SQL-like joins on Blue Prism Collections&#xD;&#xA;&#xD;&#xA;Additional information about these joins can be found here: https://www.codeproject.com/Articles/33052/Visual-Representation-of-SQL-Joins or https://www.c-sharpcorner.com/article/linq-extended-joins/" byrefcollection="true" type="object" runmode="Background" preferredid="77967ece-eb67-4a4f-9fbd-7be3e3ed5dbf">
+  <appdef>
+    <element name="Application Root">
+      <id>f1e30d96-8d4b-4de6-aeab-2cf59d40fe44</id>
+      <type>Application</type>
+      <basetype>Application</basetype>
+      <datatype>unknown</datatype>
+      <diagnose>False</diagnose>
+    </element>
+  </appdef>
+  <view>
+    <camerax>-112</camerax>
+    <cameray>-84</cameray>
+    <zoom version="2">1.25</zoom>
+  </view>
+  <preconditions />
+  <endpoint narrative="" />
+  <subsheet subsheetid="96536029-20c2-4d5a-b936-e9cd2d630b13" type="CleanUp" published="True">
+    <name>Clean Up</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>0</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53" type="Normal" published="False">
+    <name>Load From Nuget</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>-21</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="d26f48a0-f7a9-4eeb-91ee-b00b564be118" type="Normal" published="True">
+    <name>Version</name>
+    <view>
+      <camerax>32</camerax>
+      <cameray>0</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="28028bb7-5ee7-4a16-bb1b-064619811818" type="Normal" published="True">
+    <name>Inner Join</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>63</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="c3ef642c-03b5-4a64-87b6-1f13ff0f097a" type="Normal" published="True">
+    <name>Left Join</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>42</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="2ac60733-ba33-468c-b40c-b7216b2008be" type="Normal" published="True">
+    <name>Left Excluding Join</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>42</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="2c4af7bc-ab82-4a56-bd54-0a0dd7091d16" type="Normal" published="True">
+    <name>Full Excluding Join</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>63</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <subsheet subsheetid="a608330a-88fc-4df5-a05a-b8b5991e16fe" type="Normal" published="True">
+    <name>Full Join</name>
+    <view>
+      <camerax>0</camerax>
+      <cameray>42</cameray>
+      <zoom version="2">1.25</zoom>
+    </view>
+  </subsheet>
+  <stage stageid="a6c17cd1-5e61-4582-8b89-4a651f807681" name="Start" type="Start">
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>a26818d5-5e62-4796-a4a2-ffda72bc2642</onsuccess>
+  </stage>
+  <stage stageid="a1cdbc63-df94-42da-a3a7-1d7a7abe3574" name="End" type="End">
+    <loginhibit />
+    <display x="15" y="45" />
+  </stage>
+  <stage stageid="aa32f32d-9fb1-4487-83dc-c32293254095" name="Stage1" type="ProcessInfo">
+    <display x="-195" y="-120" w="330" h="120" />
+    <references>
+      <reference>System.dll</reference>
+      <reference>System.Data.dll</reference>
+      <reference>System.Diagnostics.Process.dll</reference>
+      <reference>Newtonsoft.Json.dll</reference>
+      <reference>System.Core.dll</reference>
+      <reference>System.Data.DataSetExtensions.dll</reference>
+      <reference>System.Xml.dll</reference>
+    </references>
+    <imports>
+      <import>System</import>
+      <import>System.Data</import>
+      <import>System.IO</import>
+      <import>System.Diagnostics</import>
+      <import>System.Collections.Generic</import>
+      <import>System.Linq</import>
+      <import>System.Reflection</import>
+      <import>System.Text.RegularExpressions</import>
+    </imports>
+    <language>csharp</language>
+    <globalcode><![CDATA[]]></globalcode>
+    <code><![CDATA[class KeyComparer: IEqualityComparer<IDictionary<string, object>>
+{
+	public bool Equals(IDictionary<string, object> x, IDictionary<string, object> y)
+	{
+		return x.Count == y.Count && x.All(k => k.Value.Equals(y[k.Key]));
+	}
+
+	public int GetHashCode(IDictionary<string, object> obj)
+	{
+		return obj.Values.Aggregate(0, (hash, val) => hash ^ val.GetHashCode());
+	}
+}
+
+KeyComparer keyComparer = new KeyComparer();
+Regex convertColumnName = new Regex(@"^\s*(.+?)\s+as\s+(.+?)\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+IDictionary<string, Assembly> assemblies = new Dictionary<string, Assembly>();
+
+T InvokeStaticMethod<T>(Assembly assembly, string fullQualifiedClassName, string methodName, params object[] parameters)
+{
+	var type = assembly.GetType(fullQualifiedClassName);
+	return (T)type.GetMethod(methodName, BindingFlags.Static|BindingFlags.Public).Invoke(null, parameters);
+}
+
+static IDictionary<string, object> BuildKey(DataRow row, string columns)
+{
+	return columns
+		.Split(',')
+		.Select((s, index) => new { Name = s.Trim(), Index = index })
+		.ToDictionary(k => $"_{k.Index}", v => row[v.Name]);
+}
+
+IEnumerable<KeyValuePair<string, object>> BuildSingleResult(DataRow row, string selector)
+{
+	if (row == null || string.IsNullOrEmpty(selector))
+		return Enumerable.Empty<KeyValuePair<string, object>>();
+
+	if (selector.Trim() == "*")
+		return row.Table.Columns.OfType<DataColumn>().Select(s => new KeyValuePair<string, object>(s.ColumnName, row[s.ColumnName]));
+
+	return selector.Split(',')
+			.Select(s =>
+			{
+				var m = convertColumnName.Match(s);
+				return new { From = m.Success ? m.Groups[1].Value : s.Trim(), To = m.Success ? m.Groups[2].Value : s.Trim() };
+			})
+			.Select(s => new KeyValuePair<string, object>(s.To, row[s.From]));
+}
+
+IDictionary<string, object> BuildResult(DataRow row1, string selector1, DataRow row2, string selector2)
+{
+	return BuildSingleResult(row1, selector1)
+		.Concat(BuildSingleResult(row2, selector2))
+		.ToDictionary(x => x.Key, x => x.Value);
+}
+
+IEnumerable<IDictionary<string, object>> LeftOuterJoin(DataTable left, DataTable right,string leftKeySelector, string rightKeySelector, string leftResultSelector, string rightResultSelector)
+{
+	return left.AsEnumerable().GroupJoin(right.AsEnumerable(), l => BuildKey(l, leftKeySelector), r => BuildKey(r, rightKeySelector), (l, r) => new { Left = l, Rights = r }, keyComparer)
+			.SelectMany(group => group.Rights.DefaultIfEmpty(), (group, r) => BuildResult(group.Left, leftResultSelector, r, rightResultSelector));
+}
+
+IEnumerable<IDictionary<string, object>> LeftExcludingJoin(DataTable left, DataTable right,string leftKeySelector, string rightKeySelector, string leftResultSelector)
+{
+	return left.AsEnumerable().GroupJoin(right.AsEnumerable(), l => BuildKey(l, leftKeySelector), r => BuildKey(r, rightKeySelector), (l, r) => new { Left = l, Rights = r }, keyComparer)
+			.Where(group => !group.Rights.Any())
+			.Select(group => BuildResult(group.Left, leftResultSelector, null, string.Empty));
+}]]></code>
+  </stage>
+  <stage stageid="a8af9165-60a8-40cf-a6fa-e1715aff2bce" name="Clean Up" type="SubSheetInfo">
+    <subsheetid>96536029-20c2-4d5a-b936-e9cd2d630b13</subsheetid>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="1cfc2c2e-2c62-4e63-a6af-2ff779fcd82b" name="Start" type="Start">
+    <subsheetid>96536029-20c2-4d5a-b936-e9cd2d630b13</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>21e50d46-baa2-4765-beb0-77af126ad8dc</onsuccess>
+  </stage>
+  <stage stageid="21e50d46-baa2-4765-beb0-77af126ad8dc" name="End" type="End">
+    <subsheetid>96536029-20c2-4d5a-b936-e9cd2d630b13</subsheetid>
+    <loginhibit />
+    <display x="15" y="90" />
+  </stage>
+  <stage stageid="8bad40b6-5971-4bbf-8a08-07bbb39e5f79" name="Inner Join" type="SubSheetInfo">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <narrative>This query combines all matches of the left collection with all matching records of the right collection using the given keys.
+The result will contain the defined columns.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="e3b87800-4e1f-437d-bb23-f8b2c9048a5c" name="End" type="End">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="255" />
+    <outputs>
+      <output type="collection" name="Result" stage="Result" />
+      <output type="number" name="Count" stage="Count" />
+    </outputs>
+  </stage>
+  <stage stageid="c916427e-2f6a-4a6e-a15a-348c0d368796" name="Note1" type="Note">
+    <subsheetid>96536029-20c2-4d5a-b936-e9cd2d630b13</subsheetid>
+    <narrative>Clean Up Page
+
+This is an optional page where you might choose to perform some finalisation (or "cleanup") tasks as your business object is closed down.
+
+The cleanup action will be called automatically immediately after closing your business object at the end of a business process.
+
+You will not be able to call this action from a business process, nor will it be called at any other time than before the disposal of the business object.</narrative>
+    <display x="-180" y="60" w="180" h="230" />
+  </stage>
+  <stage stageid="d98e5c7d-8ecd-45d0-b9cb-ae3a786b8a45" name="Load From Nuget" type="SubSheetInfo">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="1559199d-5c1a-4b58-8dd0-31d4aad2428a" name="Start" type="Start">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="text" name="LocalKey" stage="LocalKey" />
+      <input type="text" name="PackageInfoCsv" stage="PackageInfoCsv" />
+    </inputs>
+    <onsuccess>2f812c5c-9f56-4da9-bd3a-d0ea0f3faa8e</onsuccess>
+  </stage>
+  <stage stageid="3fa4b7eb-c5af-4753-802d-123619235f4c" name="End" type="End">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="15" y="15" />
+  </stage>
+  <stage stageid="b20b9958-8018-4460-aa71-16c5b50b105d" name="LocalKey" type="Data">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="3da23ef2-738e-47d2-b28a-12471a1bf138" name="in" type="Block">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="2f812c5c-9f56-4da9-bd3a-d0ea0f3faa8e" name="LoadFromNuget" type="Code">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="15" y="-45" />
+    <inputs>
+      <input type="text" name="localCache" expr="[BluePrismAddOnDirectory]" />
+      <input type="text" name="localKey" expr="[LocalKey]" />
+      <input type="text" name="packageInfo" expr="[PackageInfoCsv]" />
+    </inputs>
+    <onsuccess>3fa4b7eb-c5af-4753-802d-123619235f4c</onsuccess>
+    <code><![CDATA[if (!assemblies.ContainsKey(localKey))
+{
+	var parts = packageInfo.Split(',');
+	var assemblyPath =  Path.Combine(localCache, parts[2]);
+	if (!File.Exists(assemblyPath))
+	{
+		var process = Process.Start(new ProcessStartInfo("nuget.exe") {
+			WorkingDirectory = localCache,
+			WindowStyle = ProcessWindowStyle.Hidden,
+			Arguments = string.Format("install {0} -Version {1} -FallbackSource \"{2}\"", parts[0], parts[1], Path.Combine(localCache, "Packages"))
+		});
+		process.WaitForExit();
+		if (process.ExitCode!=0)
+		{
+			throw new Exception("Can not load Nuget package " + parts[0]);
+		}
+	}
+
+	assemblies.Add(localKey, Assembly.UnsafeLoadFrom(assemblyPath));
+}]]></code>
+  </stage>
+  <stage stageid="69862665-a84b-45a1-837a-e714a5690b4c" name="BluePrismAddOnDirectory" type="Data">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="-195" y="90" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <exposure>Environment</exposure>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="693bfecf-beae-49f7-9416-ad750751dfa4" name="Environment" type="Block">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <loginhibit />
+    <display x="-270" y="60" w="150" h="60" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="04d2252f-6861-4468-adf4-13a68e6b5a31" name="PackageInfoCsv" type="Data">
+    <subsheetid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a26818d5-5e62-4796-a4a2-ffda72bc2642" name="Load Json" type="SubSheet">
+    <loginhibit />
+    <display x="15" y="-30" />
+    <inputs>
+      <input type="text" name="LocalKey" friendlyname="LocalKey" expr="&quot;json&quot;" />
+      <input type="text" name="PackageInfoCsv" friendlyname="PackageInfoCsv" expr="[Nuget: CoremoranBluePrismJson]" />
+    </inputs>
+    <onsuccess>a1cdbc63-df94-42da-a3a7-1d7a7abe3574</onsuccess>
+    <processid>c880f7b9-f6c8-4b8d-b76f-ad5c0823bf53</processid>
+  </stage>
+  <stage stageid="ae5289a8-770a-417d-8eb3-ccc0ff012d8e" name="Environment" type="Block">
+    <loginhibit />
+    <display x="-315" y="-45" w="240" h="60" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="18d9b195-e2d6-4a85-9733-08d24a11de42" name="Nuget: CoremoranBluePrismJson" type="Data">
+    <loginhibit />
+    <display x="-195" y="-15" w="180" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <exposure>Environment</exposure>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="77ecb7f4-b26a-436c-aa77-b992c0f05b56" name="in" type="Block">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="a01eea75-6f6f-4965-9335-e460e97b91f6" name="Outer &amp; Inner Count&gt;0?" type="Decision">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="165" />
+    <decision expression="[Left Count] + [Right Count] &gt; 0" />
+    <ontrue>793714bd-d4ca-4494-81f2-b6015ed24c36</ontrue>
+    <onfalse>b9c9c8f6-0bad-42dd-99c8-f1501dd2574d</onfalse>
+  </stage>
+  <stage stageid="b9c9c8f6-0bad-42dd-99c8-f1501dd2574d" name="Anchor1" type="Anchor">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="75" y="165" w="10" h="10" />
+    <onsuccess>a9424024-fff5-48d1-834d-a0179eebabae</onsuccess>
+  </stage>
+  <stage stageid="a9424024-fff5-48d1-834d-a0179eebabae" name="Anchor2" type="Anchor">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="75" y="255" w="10" h="10" />
+    <onsuccess>e3b87800-4e1f-437d-bb23-f8b2c9048a5c</onsuccess>
+  </stage>
+  <stage stageid="93582c72-2f4a-4cb9-94fb-e96b6a4c7433" name="Count Left Rows" type="Action">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="75" />
+    <inputs>
+      <input type="text" name="Collection Name" friendlyname="Collection Name" narrative="The name of the collection to act upon" expr="&quot;Left&quot;" />
+    </inputs>
+    <outputs>
+      <output type="number" name="Count" friendlyname="Count" narrative="The number of rows counted in the collection" stage="Left Count" />
+    </outputs>
+    <onsuccess>e0df5b1d-4bfd-413c-b2ce-90bc1a8e7a1c</onsuccess>
+    <resource object="Blueprism.AutomateProcessCore.clsCollectionActions" action="Count Rows" />
+  </stage>
+  <stage stageid="af883fe0-e206-43af-a3d1-8478c0b59b38" name="Result" type="Collection">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="315" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="ec389e52-6c65-4410-be8a-dd0b3b4c45e1" name="Count" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="345" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue>0</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="aa670078-eb26-42a5-9fb4-aced51f16dcc" name="out" type="Block">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="-270" y="285" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="1be38100-962a-4dc7-a096-b9374d27cc94" name="Left Excluding Join" type="SubSheetInfo">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <narrative>This query will return all of the records in the left collection that do not match any records in the right collection.
+The result will contain the defined columns.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="1f4818eb-4a6d-4561-94b8-bce47a8a726b" name="End" type="End">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="210" />
+    <outputs>
+      <output type="collection" name="Result" stage="Result" />
+      <output type="number" name="Count" stage="Count" />
+    </outputs>
+  </stage>
+  <stage stageid="42a6c084-0644-4f0a-a992-746335f29066" name="Start" type="Start">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="collection" name="LeftCollection" narrative="The left collection" stage="Left" />
+      <input type="collection" name="RightCollection" narrative="The right collection" stage="Right" />
+      <input type="text" name="LeftKeySelector" narrative="All key columns of the left collection as CSV" stage="LeftKeySelector" />
+      <input type="text" name="RightKeySelector" narrative="All key columns of the right collection as CSV" stage="RightKeySelector" />
+      <input type="text" name="LeftResultSelector" narrative="All result columns of the left collection as CSV" stage="LeftResultSelector" />
+    </inputs>
+    <onsuccess>3885ae3f-2621-4856-a04c-72c30182ace7</onsuccess>
+  </stage>
+  <stage stageid="b6b5e8c6-0cd7-4467-ad18-85b1d1cd3dc4" name="left excluding join" type="Code">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="165" />
+    <inputs>
+      <input type="collection" name="left" expr="[Left]" />
+      <input type="collection" name="right" expr="[Right]" />
+      <input type="text" name="leftKeySelector" expr="[LeftKeySelector]" />
+      <input type="text" name="rightKeySelector" expr="[RightKeySelector]" />
+      <input type="text" name="leftResultSelector" expr="[LeftResultSelector]" />
+    </inputs>
+    <outputs>
+      <output type="collection" name="result" stage="Result" />
+      <output type="number" name="count" stage="Count" />
+    </outputs>
+    <onsuccess>1f4818eb-4a6d-4561-94b8-bce47a8a726b</onsuccess>
+    <code><![CDATA[result = InvokeStaticMethod<DataTable>(assemblies["json"], "Coremoran.BluePrism.Json.BluePrismConverter", "ObjectToCollection", 
+	LeftExcludingJoin(left, right, leftKeySelector, rightKeySelector, leftResultSelector));
+count = result.Rows.Count;
+]]></code>
+  </stage>
+  <stage stageid="40f39511-1118-494a-acc8-66a5eafae28e" name="Count&gt;0?" type="Decision">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="120" />
+    <decision expression="[Count]&gt;0" />
+    <ontrue>b6b5e8c6-0cd7-4467-ad18-85b1d1cd3dc4</ontrue>
+    <onfalse>55c96ee6-09d7-4bdc-a6e7-f366588dee67</onfalse>
+  </stage>
+  <stage stageid="55c96ee6-09d7-4bdc-a6e7-f366588dee67" name="Anchor1" type="Anchor">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="75" y="120" w="10" h="10" />
+    <onsuccess>a29a5589-b9f0-419d-b1ee-ebe77f1a043a</onsuccess>
+  </stage>
+  <stage stageid="a29a5589-b9f0-419d-b1ee-ebe77f1a043a" name="Anchor2" type="Anchor">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="75" y="210" w="10" h="10" />
+    <onsuccess>1f4818eb-4a6d-4561-94b8-bce47a8a726b</onsuccess>
+  </stage>
+  <stage stageid="69cdc41e-09b0-4522-8331-b30f6f9f355c" name="Count Rows" type="Action">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="75" />
+    <inputs>
+      <input type="text" name="Collection Name" friendlyname="Collection Name" narrative="The name of the collection to act upon" expr="&quot;Left&quot;" />
+    </inputs>
+    <outputs>
+      <output type="number" name="Count" friendlyname="Count" narrative="The number of rows counted in the collection" stage="Count" />
+    </outputs>
+    <onsuccess>40f39511-1118-494a-acc8-66a5eafae28e</onsuccess>
+    <resource object="Blueprism.AutomateProcessCore.clsCollectionActions" action="Count Rows" />
+  </stage>
+  <stage stageid="3885ae3f-2621-4856-a04c-72c30182ace7" name="Test left key selector" type="Decision">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" />
+    <decision expression="Len(Trim([LeftKeySelector]))&gt;0" />
+    <ontrue>771105d6-a4ce-42c8-ae19-9cfed9dd3083</ontrue>
+    <onfalse>9bbfa7ea-b755-48c1-b889-f2d287cf471c</onfalse>
+  </stage>
+  <stage stageid="9bbfa7ea-b755-48c1-b889-f2d287cf471c" name="No selector" type="Exception">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="120" y="-60" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="771105d6-a4ce-42c8-ae19-9cfed9dd3083" name="Test right key selector" type="Decision">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="-15" />
+    <decision expression="Len(Trim([RightKeySelector]))&gt;0" />
+    <ontrue>56f7adbd-18c0-4a2b-a2d1-c2136a6337a2</ontrue>
+    <onfalse>d195dc56-4430-47c5-bd7c-933059b74ff9</onfalse>
+  </stage>
+  <stage stageid="d195dc56-4430-47c5-bd7c-933059b74ff9" name="No selector" type="Exception">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="120" y="-15" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="56f7adbd-18c0-4a2b-a2d1-c2136a6337a2" name="Test left result selector" type="Decision">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <decision expression="Len(Trim([LeftResultSelector]))&gt;0" />
+    <ontrue>69cdc41e-09b0-4522-8331-b30f6f9f355c</ontrue>
+    <onfalse>451d4062-18cc-439e-8b86-d97ed085472f</onfalse>
+  </stage>
+  <stage stageid="451d4062-18cc-439e-8b86-d97ed085472f" name="No selector" type="Exception">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="120" y="30" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="2dbdeebd-0121-4e70-83e1-7f8f9dc7eb7c" name="LeftKeySelector" type="Data">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a8bb9c3c-0ec7-420d-8034-ffb92afd0613" name="RightKeySelector" type="Data">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7dc1e823-1313-4100-9963-6f3b85a3d790" name="LeftResultSelector" type="Data">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="5e40ccd9-a9a9-4719-b44c-f8483cbfd046" name="Right" type="Collection">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="3259cf25-875c-4d0d-8f2a-88c0d3a36fe5" name="Left" type="Collection">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="27b252cc-f393-40c7-bb4e-667d228f82be" name="in" type="Block">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="180" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="a7a93ef1-b106-49e8-9e8e-c782fe62a4b3" name="Result" type="Collection">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="180" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="72f9bfd3-bf44-4ff3-84d3-5a5bc0454b8e" name="Count" type="Data">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <display x="-195" y="210" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="cc67b79d-74a3-4856-8a91-0f745500e42a" name="out" type="Block">
+    <subsheetid>2ac60733-ba33-468c-b40c-b7216b2008be</subsheetid>
+    <loginhibit />
+    <display x="-270" y="150" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="1c3a93dd-e708-4a92-ad75-a984a74de851" name="Left Join" type="SubSheetInfo">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <narrative>This action will returm all records in the left collection . If there are matching records in the right collection ccording to the given keys, the records will join to the matching records of left collection.
+The result will contain the defined columns.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="390beba8-8af1-46d7-9685-3211bf599012" name="End" type="End">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="255" />
+    <outputs>
+      <output type="collection" name="Result" stage="Result" />
+      <output type="number" name="Count" stage="Count" />
+    </outputs>
+  </stage>
+  <stage stageid="09d98246-9e96-4a04-9c21-8a7540a50700" name="Start" type="Start">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="collection" name="LeftCollection" narrative="The left collection" stage="Left" />
+      <input type="collection" name="RightCollection" narrative="The right collection" stage="Right" />
+      <input type="text" name="LeftKeySelector" narrative="All key columns of the left collection as CSV" stage="LeftKeySelector" />
+      <input type="text" name="RightKeySelector" narrative="All key columns of the right collection as CSV" stage="RightKeySelector" />
+      <input type="text" name="LeftResultSelector" narrative="All result columns of the left collection as CSV" stage="LeftResultSelector" />
+      <input type="text" name="RightResultSelector" narrative="All result columns of the right collection as CSV" stage="RightResultSelector" />
+    </inputs>
+    <onsuccess>72cae8f5-014b-4cdf-b2f4-f9f1b0cfb117</onsuccess>
+  </stage>
+  <stage stageid="43124fbd-446d-4d52-81f5-49617585c2f8" name="left join" type="Code">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="210" />
+    <inputs>
+      <input type="collection" name="left" expr="[Left]" />
+      <input type="collection" name="right" expr="[Right]" />
+      <input type="text" name="leftKeySelector" expr="[LeftKeySelector]" />
+      <input type="text" name="rightKeySelector" expr="[RightKeySelector]" />
+      <input type="text" name="leftResultSelector" expr="[LeftResultSelector]" />
+      <input type="text" name="rightResultSelector" expr="[RightResultSelector]" />
+    </inputs>
+    <outputs>
+      <output type="collection" name="result" stage="Result" />
+      <output type="number" name="count" stage="Count" />
+    </outputs>
+    <onsuccess>390beba8-8af1-46d7-9685-3211bf599012</onsuccess>
+    <code><![CDATA[result = InvokeStaticMethod<DataTable>(assemblies["json"], "Coremoran.BluePrism.Json.BluePrismConverter", "ObjectToCollection", 
+	LeftOuterJoin(left, right, leftKeySelector, rightKeySelector, leftResultSelector, rightResultSelector));
+count = result.Rows.Count;]]></code>
+  </stage>
+  <stage stageid="86ce901c-9507-4fdc-9bf4-fefceb91a48f" name="Count&gt;0?" type="Decision">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="165" />
+    <decision expression="[Count]&gt;0" />
+    <ontrue>43124fbd-446d-4d52-81f5-49617585c2f8</ontrue>
+    <onfalse>b172d12a-ef58-4717-b1ca-9cc6a379869c</onfalse>
+  </stage>
+  <stage stageid="b172d12a-ef58-4717-b1ca-9cc6a379869c" name="Anchor1" type="Anchor">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="75" y="165" w="10" h="10" />
+    <onsuccess>8cc7dc63-58f1-4446-a6e4-1dc31bad7386</onsuccess>
+  </stage>
+  <stage stageid="8cc7dc63-58f1-4446-a6e4-1dc31bad7386" name="Anchor2" type="Anchor">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="75" y="255" w="10" h="10" />
+    <onsuccess>390beba8-8af1-46d7-9685-3211bf599012</onsuccess>
+  </stage>
+  <stage stageid="fc512a0a-0b8a-4a66-b3cb-13213ad53f89" name="Count Rows" type="Action">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="120" />
+    <inputs>
+      <input type="text" name="Collection Name" friendlyname="Collection Name" narrative="The name of the collection to act upon" expr="&quot;Left&quot;" />
+    </inputs>
+    <outputs>
+      <output type="number" name="Count" friendlyname="Count" narrative="The number of rows counted in the collection" stage="Count" />
+    </outputs>
+    <onsuccess>86ce901c-9507-4fdc-9bf4-fefceb91a48f</onsuccess>
+    <resource object="Blueprism.AutomateProcessCore.clsCollectionActions" action="Count Rows" />
+  </stage>
+  <stage stageid="72cae8f5-014b-4cdf-b2f4-f9f1b0cfb117" name="Test left key selector" type="Decision">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" />
+    <decision expression="Len(Trim([LeftKeySelector]))&gt;0" />
+    <ontrue>c2a7b954-cca1-456e-88be-3ad9cca3d0d4</ontrue>
+    <onfalse>65f8a047-fd23-45b6-a0f6-9501682f437f</onfalse>
+  </stage>
+  <stage stageid="65f8a047-fd23-45b6-a0f6-9501682f437f" name="No selector" type="Exception">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="120" y="-60" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="c2a7b954-cca1-456e-88be-3ad9cca3d0d4" name="Test right key selector" type="Decision">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="-15" />
+    <decision expression="Len(Trim([RightKeySelector]))&gt;0" />
+    <ontrue>ed37df7c-e97b-4506-8010-d26f7819a21e</ontrue>
+    <onfalse>261c6c13-441f-410a-b922-f60775b79ea7</onfalse>
+  </stage>
+  <stage stageid="261c6c13-441f-410a-b922-f60775b79ea7" name="No selector" type="Exception">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="120" y="-15" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="ed37df7c-e97b-4506-8010-d26f7819a21e" name="Test left result selector" type="Decision">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <decision expression="Len(Trim([LeftResultSelector]))&gt;0" />
+    <ontrue>252a8e6f-488b-43ab-a175-acf0b605afd1</ontrue>
+    <onfalse>4a216222-a61b-40a4-bf72-f18b66014577</onfalse>
+  </stage>
+  <stage stageid="4a216222-a61b-40a4-bf72-f18b66014577" name="No selector" type="Exception">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="120" y="30" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="7864d5fd-84f4-4524-96fe-72403b66cf27" name="LeftKeySelector" type="Data">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="f852f5ce-23f3-44b8-8197-42e5802b1e3f" name="RightKeySelector" type="Data">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="f9b1551e-2f99-4107-aa35-c94764f3b1f0" name="LeftResultSelector" type="Data">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="90c165ba-db8d-4c7a-8607-efff53c7a382" name="Right" type="Collection">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="040dfb20-5ea3-42ef-bf92-1427b8047cf9" name="Left" type="Collection">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="b8ae536d-7abb-4755-a590-7ef54a9166bc" name="in" type="Block">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="068605e4-44a3-44d9-8e3d-8abc7deff019" name="Result" type="Collection">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="210" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="372c5bb5-2c8a-402b-87f6-01a21187ddce" name="Count" type="Data">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="240" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="2b62fa4f-7252-49e7-aeaf-7066c459af62" name="out" type="Block">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="-270" y="180" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="83f1ff48-29c5-486b-93e5-a9c6a32c37d1" name="RightResultSelector" type="Data">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="252a8e6f-488b-43ab-a175-acf0b605afd1" name="Test right result selector" type="Decision">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <loginhibit />
+    <display x="15" y="75" />
+    <decision expression="Len(Trim([RightResultSelector]))&gt;0" />
+    <ontrue>fc512a0a-0b8a-4a66-b3cb-13213ad53f89</ontrue>
+    <onfalse>26752577-ab99-4fea-9a0b-e5e66c70c80b</onfalse>
+  </stage>
+  <stage stageid="26752577-ab99-4fea-9a0b-e5e66c70c80b" name="No selector" type="Exception">
+    <subsheetid>c3ef642c-03b5-4a64-87b6-1f13ff0f097a</subsheetid>
+    <display x="120" y="75" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="417877cf-4dba-42c0-be6a-cc79bec3d8ea" name="Version" type="SubSheetInfo">
+    <subsheetid>d26f48a0-f7a9-4eeb-91ee-b00b564be118</subsheetid>
+    <narrative>Gets the current VBO version.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="bf5bfa57-cee9-4242-866a-afe5523d198d" name="Start" type="Start">
+    <subsheetid>d26f48a0-f7a9-4eeb-91ee-b00b564be118</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <onsuccess>1f58b558-232f-41cf-b6f5-c24cd5fa72fd</onsuccess>
+  </stage>
+  <stage stageid="1f58b558-232f-41cf-b6f5-c24cd5fa72fd" name="End" type="End">
+    <subsheetid>d26f48a0-f7a9-4eeb-91ee-b00b564be118</subsheetid>
+    <loginhibit />
+    <display x="15" y="90" />
+    <outputs>
+      <output type="text" name="Version" stage="Version" />
+    </outputs>
+  </stage>
+  <stage stageid="827b5ad3-6a9b-4c2d-a076-e39a66ae03b5" name="Version" type="Data">
+    <subsheetid>d26f48a0-f7a9-4eeb-91ee-b00b564be118</subsheetid>
+    <loginhibit />
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue xml:space="preserve">1.0.0</initialvalue>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="35844403-042c-49a0-ace6-73104c9d4e16" name="const" type="Block">
+    <subsheetid>d26f48a0-f7a9-4eeb-91ee-b00b564be118</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="60" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="1b97623d-d2ce-499a-972b-199b887a9fd5" name="Full Excluding Join" type="SubSheetInfo">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <narrative>This query will return all of the records in the left collection and all of the records in the right collection that do not match.
+The result will contain the defined columns.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="1a004658-3ad6-45a1-8204-dea0911a850c" name="End" type="End">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="165" />
+    <outputs>
+      <output type="collection" name="Result" stage="Result" />
+      <output type="number" name="Count" stage="Count" />
+    </outputs>
+  </stage>
+  <stage stageid="54428982-e68a-4af0-87d0-5e71e0756fce" name="Start" type="Start">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="collection" name="Left" narrative="The left collection" stage="Left" />
+      <input type="collection" name="Right" narrative="The right collection" stage="Right" />
+      <input type="text" name="LeftKeySelector" narrative="All key columns of the left collection as CSV" stage="LeftKeySelector" />
+      <input type="text" name="RightKeySelector" narrative="All key columns of the right collection as CSV" stage="RightKeySelector" />
+      <input type="text" name="LeftResultSelector" narrative="All result columns of the left collection as CSV" stage="LeftResultSelector" />
+      <input type="text" name="RightResultSelector" narrative="All result columns of the right collection as CSV" stage="RightResultSelector" />
+    </inputs>
+    <onsuccess>8fd98e7f-f65c-45ee-9eb2-569ef361ef41</onsuccess>
+  </stage>
+  <stage stageid="38b35534-70e0-4b12-bbb0-bb72c18966fe" name="outer join" type="Code">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="120" />
+    <inputs>
+      <input type="collection" name="left" expr="[Left]" />
+      <input type="collection" name="right" expr="[Right]" />
+      <input type="text" name="leftKeySelector" expr="[LeftKeySelector]" />
+      <input type="text" name="rightKeySelector" expr="[RightKeySelector]" />
+      <input type="text" name="leftResultSelector" expr="[LeftResultSelector]" />
+      <input type="text" name="rightResultSelector" expr="[RightResultSelector]" />
+    </inputs>
+    <outputs>
+      <output type="collection" name="result" stage="Result" />
+      <output type="number" name="count" stage="Count" />
+    </outputs>
+    <onsuccess>1a004658-3ad6-45a1-8204-dea0911a850c</onsuccess>
+    <code><![CDATA[result = InvokeStaticMethod<DataTable>(assemblies["json"], "Coremoran.BluePrism.Json.BluePrismConverter", "ObjectToCollection", 
+	LeftExcludingJoin(left, right, leftKeySelector, rightKeySelector, leftResultSelector).Concat(
+	LeftExcludingJoin(right, left, rightKeySelector, leftKeySelector, rightResultSelector)));
+count = result.Rows.Count;]]></code>
+  </stage>
+  <stage stageid="8fd98e7f-f65c-45ee-9eb2-569ef361ef41" name="Test left key selector" type="Decision">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" />
+    <decision expression="Len(Trim([LeftKeySelector]))&gt;0" />
+    <ontrue>fd37be8f-1349-4958-96d1-a1794b3f8af1</ontrue>
+    <onfalse>c6f0c5ac-2610-433f-8a5a-cf0b8082f662</onfalse>
+  </stage>
+  <stage stageid="c6f0c5ac-2610-433f-8a5a-cf0b8082f662" name="No selector" type="Exception">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="120" y="-60" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="fd37be8f-1349-4958-96d1-a1794b3f8af1" name="Test right key selector" type="Decision">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="-15" />
+    <decision expression="Len(Trim([RightKeySelector]))&gt;0" />
+    <ontrue>b33055a8-f7d0-4b39-8284-b098ebaf0b38</ontrue>
+    <onfalse>1ecf27b1-cc6e-46fd-8417-bfe7a0994dee</onfalse>
+  </stage>
+  <stage stageid="1ecf27b1-cc6e-46fd-8417-bfe7a0994dee" name="No selector" type="Exception">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="120" y="-15" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="b33055a8-f7d0-4b39-8284-b098ebaf0b38" name="Test left result selector" type="Decision">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <decision expression="Len(Trim([LeftResultSelector]))&gt;0" />
+    <ontrue>53fc3042-385c-4e3a-bf31-03a8d8dfe3ea</ontrue>
+    <onfalse>160d067e-0ade-4e40-a6b5-76cf762b6eb7</onfalse>
+  </stage>
+  <stage stageid="160d067e-0ade-4e40-a6b5-76cf762b6eb7" name="No selector" type="Exception">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="120" y="30" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="25b45d97-9534-481e-a79f-49a2629bb13c" name="LeftKeySelector" type="Data">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="b09ca2d6-665e-4fdd-a5d4-65cef8336f50" name="RightKeySelector" type="Data">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="595a71b4-d352-494b-8a7e-005f24f875b5" name="LeftResultSelector" type="Data">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="c307becf-1387-4bf4-a663-1d11a43d24b7" name="Right" type="Collection">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="ff2f64b4-fbc5-443f-a497-c0b3be45526d" name="Left" type="Collection">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="6910fe9a-fba2-4296-9714-7286c5f3e53e" name="in" type="Block">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="944254ba-fd2e-4b57-8a39-ba38db5d8b94" name="Result" type="Collection">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="210" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="3030be10-763d-4b3c-9b0c-349a5d90cd48" name="Count" type="Data">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="240" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="1fc81c17-6af4-4dab-a052-ec7f19152473" name="out" type="Block">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="-270" y="180" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="5d683775-c5c0-4a79-8b3e-ed6f352e00b6" name="RightResultSelector" type="Data">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="53fc3042-385c-4e3a-bf31-03a8d8dfe3ea" name="Test right result selector" type="Decision">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <loginhibit />
+    <display x="15" y="75" />
+    <decision expression="Len(Trim([RightResultSelector]))&gt;0" />
+    <ontrue>38b35534-70e0-4b12-bbb0-bb72c18966fe</ontrue>
+    <onfalse>6482002d-634f-40e2-866f-ec41541ee582</onfalse>
+  </stage>
+  <stage stageid="6482002d-634f-40e2-866f-ec41541ee582" name="No selector" type="Exception">
+    <subsheetid>2c4af7bc-ab82-4a56-bd54-0a0dd7091d16</subsheetid>
+    <display x="120" y="75" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="d085eb33-ef7c-4c45-adf7-09d8f2c31b3e" name="Full Join" type="SubSheetInfo">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <narrative>This query will return all of the records from both collections, joining records from the left collection that match records from the right collection.
+The result will contain the defined columns.</narrative>
+    <display x="-195" y="-105" w="150" h="90" />
+  </stage>
+  <stage stageid="dfda6dc9-dd13-4dd8-af4b-092ae5d6eb35" name="End" type="End">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="255" />
+    <outputs>
+      <output type="collection" name="Result" stage="Result" />
+      <output type="number" name="Count" stage="Count" />
+    </outputs>
+  </stage>
+  <stage stageid="a9953102-5f60-40c1-b8a0-addd4a5c4dd1" name="Start" type="Start">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="collection" name="LeftCollection" narrative="The left collection" stage="Left" />
+      <input type="collection" name="RightCollection" narrative="The right collection" stage="Right" />
+      <input type="text" name="LeftKeySelector" narrative="All key columns of the left collection as CSV" stage="LeftKeySelector" />
+      <input type="text" name="RightKeySelector" narrative="All key columns of the right collection as CSV" stage="RightKeySelector" />
+      <input type="text" name="LeftResultSelector" narrative="All result columns of the left collection as CSV" stage="LeftResultSelector" />
+      <input type="text" name="RightResultSelector" narrative="All result columns of the right collection as CSV" stage="RightResultSelector" />
+    </inputs>
+    <onsuccess>4c98baf7-e0f0-4f42-9dde-7a45d01fc42b</onsuccess>
+  </stage>
+  <stage stageid="be0516d2-a1e5-46e3-a0ca-0a279f5ecaf4" name="full join" type="Code">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="210" />
+    <inputs>
+      <input type="collection" name="left" expr="[Left]" />
+      <input type="collection" name="right" expr="[Right]" />
+      <input type="text" name="leftKeySelector" expr="[LeftKeySelector]" />
+      <input type="text" name="rightKeySelector" expr="[RightKeySelector]" />
+      <input type="text" name="leftResultSelector" expr="[LeftResultSelector]" />
+      <input type="text" name="rightResultSelector" expr="[RightResultSelector]" />
+    </inputs>
+    <outputs>
+      <output type="collection" name="result" stage="Result" />
+      <output type="number" name="count" stage="Count" />
+    </outputs>
+    <onsuccess>dfda6dc9-dd13-4dd8-af4b-092ae5d6eb35</onsuccess>
+    <code><![CDATA[result = InvokeStaticMethod<DataTable>(assemblies["json"], "Coremoran.BluePrism.Json.BluePrismConverter", "ObjectToCollection", 
+	LeftOuterJoin(left, right, leftKeySelector, rightKeySelector, leftResultSelector, rightResultSelector).Concat(
+	LeftExcludingJoin(right, left, rightKeySelector, leftKeySelector, rightResultSelector)));
+count = result.Rows.Count;]]></code>
+  </stage>
+  <stage stageid="505c32da-fbc4-4d56-a343-2a324b4128c8" name="Count&gt;0?" type="Decision">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="165" />
+    <decision expression="[Count]&gt;0" />
+    <ontrue>be0516d2-a1e5-46e3-a0ca-0a279f5ecaf4</ontrue>
+    <onfalse>396a9354-b280-49b4-a789-4df7fac71285</onfalse>
+  </stage>
+  <stage stageid="396a9354-b280-49b4-a789-4df7fac71285" name="Anchor1" type="Anchor">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="75" y="165" w="10" h="10" />
+    <onsuccess>6f2a3a37-483f-433d-9a34-6bf7e8d4c96f</onsuccess>
+  </stage>
+  <stage stageid="6f2a3a37-483f-433d-9a34-6bf7e8d4c96f" name="Anchor2" type="Anchor">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="75" y="255" w="10" h="10" />
+    <onsuccess>dfda6dc9-dd13-4dd8-af4b-092ae5d6eb35</onsuccess>
+  </stage>
+  <stage stageid="dd708d42-9120-4003-98d8-5c10abdbf53d" name="Count Rows" type="Action">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="120" />
+    <inputs>
+      <input type="text" name="Collection Name" friendlyname="Collection Name" narrative="The name of the collection to act upon" expr="&quot;Left&quot;" />
+    </inputs>
+    <outputs>
+      <output type="number" name="Count" friendlyname="Count" narrative="The number of rows counted in the collection" stage="Count" />
+    </outputs>
+    <onsuccess>505c32da-fbc4-4d56-a343-2a324b4128c8</onsuccess>
+    <resource object="Blueprism.AutomateProcessCore.clsCollectionActions" action="Count Rows" />
+  </stage>
+  <stage stageid="4c98baf7-e0f0-4f42-9dde-7a45d01fc42b" name="Test left key selector" type="Decision">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" />
+    <decision expression="Len(Trim([LeftKeySelector]))&gt;0" />
+    <ontrue>d38a8933-163f-433a-bcda-5c5cd4f289b1</ontrue>
+    <onfalse>b308fc5b-288f-4104-b22a-988beffc2c16</onfalse>
+  </stage>
+  <stage stageid="b308fc5b-288f-4104-b22a-988beffc2c16" name="No selector" type="Exception">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="120" y="-60" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="d38a8933-163f-433a-bcda-5c5cd4f289b1" name="Test right key selector" type="Decision">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="-15" />
+    <decision expression="Len(Trim([RightKeySelector]))&gt;0" />
+    <ontrue>0f5018c8-f7f3-44cb-9a92-100259925d25</ontrue>
+    <onfalse>4295ed90-f96d-4f48-9419-563c218313b8</onfalse>
+  </stage>
+  <stage stageid="4295ed90-f96d-4f48-9419-563c218313b8" name="No selector" type="Exception">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="120" y="-15" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="0f5018c8-f7f3-44cb-9a92-100259925d25" name="Test left result selector" type="Decision">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <decision expression="Len(Trim([LeftResultSelector]))&gt;0" />
+    <ontrue>a51bfd59-618b-44af-880d-e85f5aca266b</ontrue>
+    <onfalse>a062d658-d48c-4b15-a0ee-fd0695a8bf74</onfalse>
+  </stage>
+  <stage stageid="a062d658-d48c-4b15-a0ee-fd0695a8bf74" name="No selector" type="Exception">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="120" y="30" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="f0844eeb-41f1-472c-9317-b49d2870c4b4" name="LeftKeySelector" type="Data">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="44edec8c-3ecb-4e77-8733-8458d3cd5978" name="RightKeySelector" type="Data">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="7d7eb289-5cc9-462f-8ec4-666f37a24015" name="LeftResultSelector" type="Data">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="fd435339-a97f-4b69-87cf-178c10339aab" name="Right" type="Collection">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="339edbdf-4e85-42c5-ac8c-3c71e15bac82" name="Left" type="Collection">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a74d1219-894d-4bae-baf8-a9180b7962b2" name="in" type="Block">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="-270" y="-45" w="150" h="210" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="0b923dc9-9025-4a5a-aa48-ad0fb8984a17" name="Result" type="Collection">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="210" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="32ae9470-cc6c-4548-8fa2-3dcd83fa7ef1" name="Count" type="Data">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="240" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="e4361afd-6223-46b9-a8f5-7bdf86cfb730" name="out" type="Block">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="-270" y="180" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="8612f700-b1a5-4d17-baca-378a3bdc0909" name="RightResultSelector" type="Data">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a51bfd59-618b-44af-880d-e85f5aca266b" name="Test right result selector" type="Decision">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <loginhibit />
+    <display x="15" y="75" />
+    <decision expression="Len(Trim([RightResultSelector]))&gt;0" />
+    <ontrue>dd708d42-9120-4003-98d8-5c10abdbf53d</ontrue>
+    <onfalse>b733e47b-a52c-4037-8a42-a0a42cf2189b</onfalse>
+  </stage>
+  <stage stageid="b733e47b-a52c-4037-8a42-a0a42cf2189b" name="No selector" type="Exception">
+    <subsheetid>a608330a-88fc-4df5-a05a-b8b5991e16fe</subsheetid>
+    <display x="120" y="75" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightResultSelector empty&quot;" />
+  </stage>
+  <stage stageid="e0df5b1d-4bfd-413c-b2ce-90bc1a8e7a1c" name="Count Right Rows" type="Action">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit onsuccess="true" />
+    <display x="15" y="120" />
+    <inputs>
+      <input type="text" name="Collection Name" friendlyname="Collection Name" narrative="The name of the collection to act upon" expr="&quot;Right&quot;" />
+    </inputs>
+    <outputs>
+      <output type="number" name="Count" friendlyname="Count" narrative="The number of rows counted in the collection" stage="Right Count" />
+    </outputs>
+    <onsuccess>a01eea75-6f6f-4965-9335-e460e97b91f6</onsuccess>
+    <resource object="Blueprism.AutomateProcessCore.clsCollectionActions" action="Count Rows" />
+  </stage>
+  <stage stageid="7c957065-d033-4abb-b873-9471939f0bcb" name="local" type="Block">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="-270" y="180" w="150" h="90" />
+    <font family="Segoe UI" size="10" style="Regular" color="7FB2E5" />
+  </stage>
+  <stage stageid="c76ad494-cd6d-4f71-9adb-d1686b060656" name="Start" type="Start">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="-105" />
+    <inputs>
+      <input type="collection" name="LeftCollection" narrative="The left collection" stage="Left" />
+      <input type="collection" name="RightCollection" narrative="The right collection" stage="Right" />
+      <input type="text" name="LeftKeySelector" narrative="All key columns of the left collection as CSV" stage="LeftKeySelector" />
+      <input type="text" name="RightKeySelector" narrative="All key columns of the right collection as CSV" stage="RightKeySelector" />
+      <input type="text" name="LeftResultSelector" narrative="All result columns of the left collection as CSV" stage="LeftResultSelector" />
+      <input type="text" name="RightResultSelector" narrative="All result columns of the right collection as CSV" stage="RightResultSelector" />
+    </inputs>
+    <onsuccess>e6b058cb-a543-4145-9595-6056e157762c</onsuccess>
+  </stage>
+  <stage stageid="e6b058cb-a543-4145-9595-6056e157762c" name="Test left key selector" type="Decision">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="-60" />
+    <decision expression="Len(Trim([LeftKeySelector]))&gt;0" />
+    <ontrue>54d61363-05e0-4a52-8dcf-d8bc272d862c</ontrue>
+    <onfalse>ab23916a-0865-4f89-94a4-95d77144c904</onfalse>
+  </stage>
+  <stage stageid="ab23916a-0865-4f89-94a4-95d77144c904" name="No selector" type="Exception">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="120" y="-60" />
+    <exception localized="yes" type="Business Exception" detail="&quot;LeftKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="54d61363-05e0-4a52-8dcf-d8bc272d862c" name="Test right key selector" type="Decision">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="-15" />
+    <decision expression="Len(Trim([RightKeySelector]))&gt;0" />
+    <ontrue>34672839-a567-4eb2-851f-8b01e2218a27</ontrue>
+    <onfalse>c3d2ef45-7b9c-4665-90d0-a5a46e115406</onfalse>
+  </stage>
+  <stage stageid="c3d2ef45-7b9c-4665-90d0-a5a46e115406" name="No selector" type="Exception">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="120" y="-15" />
+    <exception localized="yes" type="Business Exception" detail="&quot;RightKeySelector empty&quot;" />
+  </stage>
+  <stage stageid="34672839-a567-4eb2-851f-8b01e2218a27" name="Test result selector" type="Decision">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="30" />
+    <decision expression="Len(Trim([LeftResultSelector]))&gt;0 OR Len(Trim([RightResultSelector]))&gt;0" />
+    <ontrue>93582c72-2f4a-4cb9-94fb-e96b6a4c7433</ontrue>
+    <onfalse>4906cad6-52df-4fd7-9cd2-79c0121de66b</onfalse>
+  </stage>
+  <stage stageid="4906cad6-52df-4fd7-9cd2-79c0121de66b" name="No selector" type="Exception">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="120" y="30" />
+    <exception localized="yes" type="Business Exception" detail="&quot;Neither LeftResultSelector nor RightResultSelector provided&quot;" />
+  </stage>
+  <stage stageid="ce496bdc-56ae-496d-a1d8-ba0862223014" name="Left" type="Collection">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="-15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="5c30a6e2-5181-4985-b5a5-4e22a988bbbf" name="Right" type="Collection">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="15" w="120" h="30" />
+    <datatype>collection</datatype>
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="b8f47382-ec51-4b8d-94fe-c12cc3b2baa1" name="LeftKeySelector" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="45" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="abe764ff-479c-46a6-a13d-ede9ea5f2b94" name="RightKeySelector" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="75" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="034e39ce-4c83-4dde-a0c8-5c0b3e9265f9" name="LeftResultSelector" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="105" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="a0b6006d-3095-405c-955c-6fb2e9117094" name="RightResultSelector" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="135" w="120" h="30" />
+    <datatype>text</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="d5a18a39-7597-4e9c-a928-a502c3e3b10f" name="Left Count" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="210" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="e144e595-e386-43a3-a6e0-eed48c0360e5" name="Right Count" type="Data">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <display x="-195" y="240" w="120" h="30" />
+    <datatype>number</datatype>
+    <initialvalue />
+    <private />
+    <alwaysinit />
+  </stage>
+  <stage stageid="793714bd-d4ca-4494-81f2-b6015ed24c36" name="inner join" type="Code">
+    <subsheetid>28028bb7-5ee7-4a16-bb1b-064619811818</subsheetid>
+    <loginhibit />
+    <display x="15" y="210" />
+    <inputs>
+      <input type="collection" name="left" expr="[Left]" />
+      <input type="collection" name="right" expr="[Right]" />
+      <input type="text" name="leftKeySelector" expr="[LeftKeySelector]" />
+      <input type="text" name="rightKeySelector" expr="[RightKeySelector]" />
+      <input type="text" name="leftResultSelector" expr="[LeftResultSelector]" />
+      <input type="text" name="rightResultSelector" expr="[RightResultSelector]" />
+    </inputs>
+    <outputs>
+      <output type="collection" name="result" stage="Result" />
+      <output type="number" name="count" stage="Count" />
+    </outputs>
+    <onsuccess>e3b87800-4e1f-437d-bb23-f8b2c9048a5c</onsuccess>
+    <code><![CDATA[var tempResult= left.AsEnumerable().Join(
+	right.AsEnumerable(),
+	l => BuildKey(l, leftKeySelector),
+	r => BuildKey(r, rightKeySelector),
+	(l, r) => BuildResult(l, leftResultSelector, r, rightResultSelector),
+	keyComparer);
+	
+result = InvokeStaticMethod<DataTable>(assemblies["json"], "Coremoran.BluePrism.Json.BluePrismConverter", "ObjectToCollection", 
+	tempResult);
+count = result.Rows.Count;]]></code>
+  </stage>
+</process>

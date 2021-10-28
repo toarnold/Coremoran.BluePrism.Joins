@@ -1,0 +1,7 @@
+@call ..\export.cmd %1 %2 "Coremoran - Unit - Assertions"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins - InnerJoin (Tests)"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins - LeftJoin (Tests)"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins - LeftExcludingJoin (Tests)"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins - FullExcludingJoin (Tests)"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins - FullJoin (Tests)"
+@call ..\export.cmd %1 %2 "Coremoran - Utility - Joins (Testsuite)"
