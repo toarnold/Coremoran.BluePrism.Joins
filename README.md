@@ -114,7 +114,9 @@ The result will contain the defined columns.
 
 ## Installation
 
-Simply install the ```.bprelease``` file. This installs the VBO and three environment variables.
+Got to the [release page](https://github.com/toarnold/Coremoran.BluePrism.Joins/releases) and download the ```.bprelease``` latest file.
+Install the ```.bprelease``` file on the usual way. 
+This installs the VBO and three environment variables.
 
 There is another ```.bprelease``` file which contains BluePrism unit tests for the VBO. This package needs the [Coremoran - Utility - JSON](https://github.com/toarnold/Coremoran.BluePrism.Json) VBO.
 
